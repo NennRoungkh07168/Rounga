@@ -1,0 +1,5 @@
+<resources>
+    <!-- Compose draws the UI; this only sets the window background/status
+         bar behind it before the first frame renders. -->
+    <style name="Theme.Feather" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
