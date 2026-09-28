@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -59,8 +61,8 @@ internal fun MaterialLibraryDialog(vm: FeatherViewModel, onDismiss: () -> Unit) 
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        androidx.compose.foundation.lazy.items(MaterialCategory.values().toList()) { c ->
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(MaterialCategory.values().toList()) { c: MaterialCategory ->
                             FilterChip(selected = category == c, onClick = { category = if (category == c) null else c }, label = { Text(c.label) })
                         }
                     }

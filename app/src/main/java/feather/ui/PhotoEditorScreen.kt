@@ -160,7 +160,7 @@ internal fun PhotoEditorScreen(
     val image: @Composable (Modifier) -> Unit = { m -> PhotoCanvas(s, editor, tool, brush, m) }
     val panel: @Composable () -> Unit = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            ToolPanel(tool, s, editor, brush) { brush = it }
+            ToolPanel(tool, s, editor, brush, onBrush = { brush = it }, guessing = guessing, onGuess = { scope.launch { runGuess() } })
             ToolBar(tool) { tool = it }
         }
     }
@@ -286,7 +286,15 @@ private fun ToolBar(current: PhotoTool, onPick: (PhotoTool) -> Unit) {
 }
 
 @Composable
-private fun ToolPanel(tool: PhotoTool, s: PhotoState, editor: PhotoEditor, brush: Float, onBrush: (Float) -> Unit) {
+private fun ToolPanel(
+    tool: PhotoTool,
+    s: PhotoState,
+    editor: PhotoEditor,
+    brush: Float,
+    onBrush: (Float) -> Unit,
+    guessing: Boolean,
+    onGuess: () -> Unit,
+) {
     PanelCard {
         when (tool) {
             PhotoTool.ACTIONS -> {
@@ -308,7 +316,7 @@ private fun ToolPanel(tool: PhotoTool, s: PhotoState, editor: PhotoEditor, brush
                 }
                 OutlinedButton(onClick = { editor.edgeSketch() }) { Text("Pencil sketch (edges only)") }
                 Text("Sketch turns a shaded photo into lines, which trace far better than filled tones.", style = MaterialTheme.typography.bodySmall)
-                OutlinedButton(onClick = { scope.launch { runGuess() } }, enabled = !guessing) {
+                OutlinedButton(onClick = onGuess, enabled = !guessing) {
                     Text(if (guessing) "Looking..." else "Guess material (beta)")
                 }
             }

@@ -2,8 +2,9 @@ package feather.link
 
 import android.app.Activity
 import android.graphics.Bitmap
-import com.google.android.gms.mlkit.vision.codescanner.GmsBarcodeScannerOptions
-import com.google.android.gms.mlkit.vision.codescanner.GmsBarcodeScanning
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
@@ -34,12 +35,12 @@ object QrCodes {
      */
     suspend fun scan(activity: Activity): String? = suspendCancellableCoroutine { cont ->
         val options = GmsBarcodeScannerOptions.Builder()
-            .setBarcodeFormats(com.google.mlkit.vision.barcode.common.Barcode.FORMAT_QR_CODE)
+            .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
             .build()
         val scanner = GmsBarcodeScanning.getClient(activity, options)
         scanner.startScan()
-            .addOnSuccessListener { barcode -> if (cont.isActive) cont.resume(barcode.rawValue) }
+            .addOnSuccessListener { barcode: Barcode -> if (cont.isActive) cont.resume(barcode.rawValue) }
             .addOnCanceledListener { if (cont.isActive) cont.resume(null) }
-            .addOnFailureListener { e -> if (cont.isActive) cont.cancel(e) }
+            .addOnFailureListener { e: Exception -> if (cont.isActive) cont.cancel(e) }
     }
 }
