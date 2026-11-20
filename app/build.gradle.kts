@@ -14,8 +14,8 @@ android {
         // lower, but there's no reason to split the floor for them.
         minSdk = 26
         targetSdk = 34
-        versionCode = 5
-        versionName = "0.5.0"
+        versionCode = 6
+        versionName = "0.5.1-hc05"
     }
 
     buildTypes {

@@ -920,7 +920,7 @@ class FeatherViewModel(
     fun startScan() {
         if (scanJob?.isActive == true) return
         if (!BlePermissions.hasRequiredPermissions(appContext)) { report("Bluetooth permission is needed to scan"); return }
-        _uiState.update { it.copy(scanning = true, bleDevices = emptyList()) }
+        _uiState.update { it.copy(scanning = true, bleDevices = pairedClassicEntries()) }
         scanJob = viewModelScope.launch {
             try {
                 withTimeoutOrNull(SCAN_MS) {
@@ -942,6 +942,15 @@ class FeatherViewModel(
 
     fun stopScan() { scanJob?.cancel() }
 
+    /** Modules paired in Android settings that need the classic link (HC-05 / HC-06). rssi 0 = "paired, not scanned". */
+    private fun pairedClassicEntries(): List<BleDevice> {
+        val adapter = (appContext.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
+        return ClassicBluetoothMachineLink.pairedClassicDevices(adapter).map { d ->
+            val name = try { d.name } catch (e: SecurityException) { null }
+            BleDevice(d.address, name ?: "Paired device", 0)
+        }
+    }
+
     private fun buildLink(target: LinkTarget): MachineLink = when (target) {
         is LinkTarget.Ble -> {
             val adapter = (appContext.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
@@ -953,7 +962,7 @@ class FeatherViewModel(
             } catch (e: IllegalArgumentException) {
                 throw MachineLinkException("Invalid Bluetooth address ${target.address}", e)
             }
-            BleMachineLink(appContext, device)
+            if (ClassicBluetoothMachineLink.isClassic(device)) ClassicBluetoothMachineLink(device) else BleMachineLink(appContext, device)
         }
         is LinkTarget.Wifi -> {
             if (target.host.isBlank()) throw MachineLinkException("Enter the controller's IP address")

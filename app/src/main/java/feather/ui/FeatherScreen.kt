@@ -297,12 +297,12 @@ fun FeatherScreen(viewModel: FeatherViewModel) {
                 Column {
                     if (state.scanning) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                     if (state.bleDevices.isEmpty()) {
-                        Text(if (state.scanning) "Scanning..." else "No named devices found. Check the machine is powered and advertising.")
+                        Text(if (state.scanning) "Scanning..." else "No devices found. For an HC-05, pair it first in Android Bluetooth settings (PIN 1234 or 0000), then tap Rescan.")
                     }
                     LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
                         items(state.bleDevices, key = { it.address }) { d ->
                             TextButton(onClick = { viewModel.selectBleDevice(d); dialog = null }) {
-                                Text("${d.name}  ${d.address}  ${d.rssi} dBm")
+                                Text(if (d.rssi == 0) "${d.name}  ${d.address}  (paired, classic Bluetooth)" else "${d.name}  ${d.address}  ${d.rssi} dBm")
                             }
                         }
                     }
