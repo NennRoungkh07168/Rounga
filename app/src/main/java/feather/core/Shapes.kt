@@ -49,6 +49,12 @@ data class JobSettings(
     val arcToleranceUm: Long = 5L,
     /** Reorder paths (nearest-first) to cut rapid travel. Cut result is identical. */
     val optimizeTravel: Boolean = true,
+    /** What to do with closed shapes (open lines are always engraved on the line). */
+    val operation: CamOperation = CamOperation.ENGRAVE,
+    /** Cutter diameter, used by every operation except ENGRAVE. */
+    val toolDiameterUm: Micrometers = Micrometers.fromMillimeters(3.0),
+    /** Pocket loop spacing as a percentage of the tool diameter. */
+    val stepoverPercent: Int = 40,
 ) {
     /** Human-readable problems; empty means the settings are safe to run. */
     fun validationErrors(): List<String> {
@@ -64,6 +70,10 @@ data class JobSettings(
         if (!plungeRateMmPerMin.isFinite() || plungeRateMmPerMin <= 0.0 || plungeRateMmPerMin > MAX_FEED) errors += "Plunge rate must be between 0 and $MAX_FEED mm/min."
         if (safeHeightUm.raw <= 0 || safeHeightUm.raw > MAX_LENGTH_UM) errors += "Safe height must be between 0 and 500 mm."
         if (arcToleranceUm !in 1L..1000L) errors += "Arc tolerance must be 1-1000 µm."
+        if (operation != CamOperation.ENGRAVE) {
+            if (toolDiameterUm.raw < 100 || toolDiameterUm.raw > 50_000) errors += "Tool diameter must be between 0.1 and 50 mm."
+            if (stepoverPercent !in 5..100) errors += "Stepover must be 5-100 % of the tool diameter."
+        }
         return errors
     }
 

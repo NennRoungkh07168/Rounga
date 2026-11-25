@@ -43,6 +43,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -57,6 +58,7 @@ import kotlinx.coroutines.launch
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import feather.core.CamOperation
 import feather.core.JobSettings
 import feather.core.Micrometers
 import feather.link.BlePermissions
@@ -275,8 +277,7 @@ fun FeatherScreen(viewModel: FeatherViewModel) {
         )
         Dlg.EXACT -> ExactShapeDialog(
             onDismiss = { dialog = null },
-            onAddRect = { x, y, w, h -> if (viewModel.addRectangle(x, y, w, h)) dialog = null },
-            onAddCircle = { x, y, d -> if (viewModel.addCircle(x, y, d)) dialog = null },
+            onAdd = { kind, values -> if (viewModel.addExact(kind, values)) dialog = null },
         )
         Dlg.STOCK -> StockDialog(
             current = state.stock,
@@ -450,9 +451,13 @@ internal fun JobSettingsDialog(current: JobSettings, onDismiss: () -> Unit, onAp
     var plunge by remember { mutableStateOf(current.plungeRateMmPerMin.toString()) }
     var safe by remember { mutableStateOf(current.safeHeightUm.toGcodeMm()) }
     var optimize by remember { mutableStateOf(current.optimizeTravel) }
+    var op by remember { mutableStateOf(current.operation) }
+    var toolDia by remember { mutableStateOf(current.toolDiameterUm.toGcodeMm()) }
+    var stepover by remember { mutableStateOf(current.stepoverPercent.toString()) }
 
     val d = parseMm(depth); val st = parseMm(step); val f = parseMm(feed); val p = parseMm(plunge); val sh = parseMm(safe)
-    val candidate = if (d != null && st != null && f != null && p != null && sh != null) {
+    val td = parseMm(toolDia); val so = parseMm(stepover)
+    val candidate = if (d != null && st != null && f != null && p != null && sh != null && td != null && so != null) {
         current.copy(
             totalDepthUm = Micrometers.fromMillimeters(d),
             stepDownUm = Micrometers.fromMillimeters(st),
@@ -460,18 +465,36 @@ internal fun JobSettingsDialog(current: JobSettings, onDismiss: () -> Unit, onAp
             plungeRateMmPerMin = p,
             safeHeightUm = Micrometers.fromMillimeters(sh),
             optimizeTravel = optimize,
+            operation = op,
+            toolDiameterUm = Micrometers.fromMillimeters(td),
+            stepoverPercent = Math.round(so).toInt(),
         )
     } else null
     val errors = candidate?.validationErrors() ?: listOf("Enter a valid number in every field.")
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Feed rates and depth") },
+        title = { Text("Cutting operation, feed rates and depth") },
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
                 modifier = Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()),
             ) {
+                Text("What the cutter does with closed shapes", style = MaterialTheme.typography.labelLarge)
+                CamOperation.values().forEach { o ->
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        androidx.compose.material3.RadioButton(selected = op == o, onClick = { op = o })
+                        Text(o.label, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                if (op != CamOperation.ENGRAVE) {
+                    NumberField("Tool diameter (mm)", toolDia, { toolDia = it })
+                    if (op == CamOperation.POCKET) NumberField("Pocket stepover (% of tool diameter)", stepover, { stepover = it })
+                    Text(
+                        "A shape drawn inside another shape is a hole. Open lines are still engraved on the line.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
                 NumberField("Total depth (mm, multiple of 0.02)", depth, { depth = it })
                 NumberField("Step-down per pass (mm, multiple of 0.02)", step, { step = it })
                 NumberField("Feed rate (mm/min)", feed, { feed = it })
@@ -523,16 +546,33 @@ internal fun CalibrateDialog(displayedUm: Long, onDismiss: () -> Unit, onApply: 
 @Composable
 internal fun ExactShapeDialog(
     onDismiss: () -> Unit,
-    onAddRect: (x: Double, y: Double, w: Double, h: Double) -> Unit,
-    onAddCircle: (x: Double, y: Double, d: Double) -> Unit,
+    onAdd: (kind: String, values: List<Double>) -> Unit,
 ) {
-    var circle by remember { mutableStateOf(false) }
-    var x by remember { mutableStateOf("0") }
-    var y by remember { mutableStateOf("0") }
-    var w by remember { mutableStateOf("10") }
-    var h by remember { mutableStateOf("10") }
-    val px = parseMm(x); val py = parseMm(y); val pw = parseMm(w); val ph = parseMm(h)
-    val valid = px != null && py != null && pw != null && pw > 0.0 && (circle || (ph != null && ph > 0.0))
+    var kind by remember { mutableStateOf("rect") }
+    val labels: List<String> = when (kind) {
+        "rect" -> listOf("Corner X (mm)", "Corner Y (mm)", "Width (mm)", "Height (mm)")
+        "circle" -> listOf("Centre X (mm)", "Centre Y (mm)", "Diameter (mm)")
+        "line" -> listOf("Start X (mm)", "Start Y (mm)", "End X (mm)", "End Y (mm)")
+        "arc" -> listOf("Centre X (mm)", "Centre Y (mm)", "Diameter (mm)", "Start angle (deg, 0 = +X)", "Sweep (deg, + = counter-clockwise)")
+        else -> listOf("Centre X (mm)", "Centre Y (mm)", "Diameter across corners (mm)", "Number of sides (3-64)", "Rotation (deg)")
+    }
+    val defaults: List<String> = when (kind) {
+        "rect" -> listOf("0", "0", "10", "10")
+        "circle" -> listOf("0", "0", "10")
+        "line" -> listOf("0", "0", "10", "0")
+        "arc" -> listOf("0", "0", "20", "0", "90")
+        else -> listOf("0", "0", "20", "6", "0")
+    }
+    val fields = remember(kind) { mutableStateListOf<String>().apply { addAll(defaults) } }
+    val nums = fields.map { parseMm(it) }.filterNotNull()
+    val allNumbers = nums.size == labels.size && fields.size == labels.size
+    val valid = allNumbers && when (kind) {
+        "rect" -> nums[2] > 0.0 && nums[3] > 0.0
+        "circle" -> nums[2] > 0.0
+        "line" -> nums[0] != nums[2] || nums[1] != nums[3]
+        "arc" -> nums[2] > 0.0 && nums[4] != 0.0
+        else -> nums[2] > 0.0 && nums[3] >= 3.0 && nums[3] <= 64.0
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -543,22 +583,21 @@ internal fun ExactShapeDialog(
                 modifier = Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()),
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    androidx.compose.material3.FilterChip(selected = !circle, onClick = { circle = false }, label = { Text("Rectangle") })
-                    androidx.compose.material3.FilterChip(selected = circle, onClick = { circle = true }, label = { Text("Circle") })
+                    androidx.compose.material3.FilterChip(selected = kind == "rect", onClick = { kind = "rect" }, label = { Text("Rectangle") })
+                    androidx.compose.material3.FilterChip(selected = kind == "circle", onClick = { kind = "circle" }, label = { Text("Circle") })
+                    androidx.compose.material3.FilterChip(selected = kind == "line", onClick = { kind = "line" }, label = { Text("Line") })
                 }
-                NumberField(if (circle) "Centre X (mm)" else "Corner X (mm)", x, { x = it })
-                NumberField(if (circle) "Centre Y (mm)" else "Corner Y (mm)", y, { y = it })
-                NumberField(if (circle) "Diameter (mm)" else "Width (mm)", w, { w = it })
-                if (!circle) NumberField("Height (mm)", h, { h = it })
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.material3.FilterChip(selected = kind == "arc", onClick = { kind = "arc" }, label = { Text("Arc") })
+                    androidx.compose.material3.FilterChip(selected = kind == "polygon", onClick = { kind = "polygon" }, label = { Text("Polygon") })
+                }
+                labels.forEachIndexed { i, label ->
+                    if (i < fields.size) NumberField(label, fields[i], { fields[i] = it })
+                }
             }
         },
         confirmButton = {
-            TextButton(
-                enabled = valid,
-                onClick = {
-                    if (circle) onAddCircle(px!!, py!!, pw!!) else onAddRect(px!!, py!!, pw!!, ph!!)
-                },
-            ) { Text("Add") }
+            TextButton(enabled = valid, onClick = { onAdd(kind, nums) }) { Text("Add") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )

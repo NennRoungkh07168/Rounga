@@ -524,6 +524,11 @@ private fun ToolpathPanel(
             "Depth ${s.totalDepthUm.toGcodeMm()} mm in ${s.stepDownUm.toGcodeMm()} mm passes, feed ${fmtNum(s.feedRateMmPerMin)} mm/min",
             style = MaterialTheme.typography.bodySmall,
         )
+        Text(
+            "Operation: ${s.operation.label}" +
+                (if (s.operation != feather.core.CamOperation.ENGRAVE) ", tool ${s.toolDiameterUm.toGcodeMm()} mm" else ""),
+            style = MaterialTheme.typography.bodySmall,
+        )
         ButtonRow {
             OutlinedButton(onClick = { openDialog(Dlg.JOB) }) { Text("Feed rates...") }
             Button(onClick = { vm.analyzeJob() }, enabled = state.shapes.isNotEmpty()) { Text("Check job") }

@@ -110,6 +110,9 @@ object FeatherFile {
             put("safeHeightUm", doc.settings.safeHeightUm.raw)
             put("arcToleranceUm", doc.settings.arcToleranceUm)
             put("optimizeTravel", doc.settings.optimizeTravel)
+            put("operation", doc.settings.operation.name)
+            put("toolDiameterUm", doc.settings.toolDiameterUm.raw)
+            put("stepoverPercent", doc.settings.stepoverPercent)
         })
     }
 
@@ -131,6 +134,9 @@ object FeatherFile {
             safeHeightUm = Micrometers(job.getLong("safeHeightUm")),
             arcToleranceUm = job.optLong("arcToleranceUm", defaults.arcToleranceUm),
             optimizeTravel = job.optBoolean("optimizeTravel", defaults.optimizeTravel),
+            operation = CamOperation.values().firstOrNull { it.name == job.optString("operation", "") } ?: defaults.operation,
+            toolDiameterUm = Micrometers(job.optLong("toolDiameterUm", defaults.toolDiameterUm.raw)),
+            stepoverPercent = job.optInt("stepoverPercent", defaults.stepoverPercent),
         )
         val shapesJson = json.getJSONArray("shapes")
         val shapes = (0 until shapesJson.length()).map { shapeFromJson(shapesJson.getJSONObject(it)) }

@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import feather.core.BoardCalibration
+import feather.core.Cam
 import feather.core.CutJob
 import feather.core.FeatherDocument
 import feather.core.FeatherFile
@@ -23,6 +24,7 @@ import feather.core.MachineLimitException
 import feather.core.Measurement
 import feather.core.Micrometers
 import feather.core.PointUm
+import feather.core.Primitives
 import feather.core.Shape
 import feather.core.ShapeOps
 import feather.core.Viewport
@@ -521,6 +523,49 @@ class FeatherViewModel(
 
     private fun validMm(a: Double, b: Double) =
         a.isFinite() && b.isFinite() && Math.abs(a) <= MAX_COORD_MM && Math.abs(b) <= MAX_COORD_MM
+
+    /** The job as the machine will cut it: closed shapes offset by the tool radius for the chosen operation. */
+    private fun jobOf(s: FeatherUiState): CutJob = CutJob(Cam.apply(s.shapes, s.settings), s.settings)
+
+    // ---- More exact shapes (line, arc, polygon) ----------------------------------------------
+
+    /** One entry point for the "Add exact shape" dialog. Values are in mm / degrees, in the order the dialog shows them. */
+    fun addExact(kind: String, v: List<Double>): Boolean = when (kind) {
+        "rect" -> v.size >= 4 && addRectangle(v[0], v[1], v[2], v[3])
+        "circle" -> v.size >= 3 && addCircle(v[0], v[1], v[2])
+        "line" -> v.size >= 4 && addLine(v[0], v[1], v[2], v[3])
+        "arc" -> v.size >= 5 && addArc(v[0], v[1], v[2], v[3], v[4])
+        "polygon" -> v.size >= 5 && addPolygon(v[0], v[1], v[2], Math.round(v[3]).toInt(), v[4])
+        else -> false
+    }
+
+    fun addLine(x1: Double, y1: Double, x2: Double, y2: Double): Boolean {
+        if (!validMm(x1, y1) || !validMm(x2, y2) || (x1 == x2 && y1 == y2)) {
+            report("Line values are out of range, or its two ends are the same point"); return false
+        }
+        val a = PointUm(Micrometers.fromMillimeters(x1), Micrometers.fromMillimeters(y1))
+        val b = PointUm(Micrometers.fromMillimeters(x2), Micrometers.fromMillimeters(y2))
+        commit(_uiState.value.shapes + Shape.Line(a, b))
+        return true
+    }
+
+    fun addArc(cxMm: Double, cyMm: Double, diameterMm: Double, startDeg: Double, sweepDeg: Double): Boolean {
+        if (!validMm(cxMm, cyMm) || !validMm(diameterMm, 0.0) || diameterMm <= 0.0 ||
+            !startDeg.isFinite() || !sweepDeg.isFinite() || sweepDeg == 0.0
+        ) {
+            report("Arc values are out of range"); return false
+        }
+        commit(_uiState.value.shapes + Primitives.arc(cxMm, cyMm, diameterMm, startDeg, sweepDeg, _uiState.value.settings.arcToleranceUm))
+        return true
+    }
+
+    fun addPolygon(cxMm: Double, cyMm: Double, diameterMm: Double, sides: Int, rotationDeg: Double): Boolean {
+        if (!validMm(cxMm, cyMm) || !validMm(diameterMm, 0.0) || diameterMm <= 0.0 || sides !in 3..64 || !rotationDeg.isFinite()) {
+            report("Polygon values are out of range (3 to 64 sides)"); return false
+        }
+        commit(_uiState.value.shapes + Primitives.regularPolygon(cxMm, cyMm, diameterMm, sides, rotationDeg))
+        return true
+    }
 
     // ---- History -------------------------------------------------------------------
 
@@ -1043,7 +1088,7 @@ class FeatherViewModel(
 
     /** G-code for the current drawing on the active device (or machine-agnostic when no device is set). */
     private fun generateGcode(s: FeatherUiState): String {
-        val job = CutJob(s.shapes, s.settings)
+        val job = jobOf(s)
         val context = s.devices.activeDevice?.toMachineContext()
         val gcode = if (context != null) GCodeGenerator.generate(job, context) else GCodeGenerator.generate(job)
         val map = s.heightMap
@@ -1365,7 +1410,7 @@ class FeatherViewModel(
         if (s.shapes.isEmpty()) { report("Nothing drawn yet"); return null }
         val device = s.devices.activeDevice
         val problems = ArrayList<String>()
-        val job = CutJob(s.shapes, s.settings)
+        val job = try { jobOf(s) } catch (e: IllegalArgumentException) { CutJob(s.shapes, s.settings) }
         var gcode: String? = null
         try {
             gcode = generateGcode(s)

@@ -71,6 +71,7 @@ dependencies {
     // QR: zxing-core is pure Java (no Android dependency) and only used to encode a
     // string into a BitMatrix, which QrCodes.kt turns into a Bitmap by hand.
     implementation("com.google.zxing:core:3.5.3")
+    implementation("org.locationtech.jts:jts-core:1.20.0")   // polygon offset for CAM
     // QR: Google Play Services' own scanner UI — no CAMERA permission or camera
     // preview code needed in this app, but it requires Play Services on the device.
     // Check com.google.android.gms:play-services-code-scanner for the latest version.
