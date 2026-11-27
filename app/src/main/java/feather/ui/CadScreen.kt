@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import feather.core.CadSolid
 import feather.core.CadBoolean
+import feather.core.CadStlExporter
 import kotlin.math.*
 
 @Composable
