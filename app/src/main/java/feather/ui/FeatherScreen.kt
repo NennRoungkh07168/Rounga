@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -75,6 +76,7 @@ internal enum class Tab(val label: String, val icon: ImageVector) {
     TOOLS("Tools", Icons.Filled.Build),
     MACHINE("Machine", Icons.Filled.PlayArrow),
     FILES("Files", Icons.Filled.Folder),
+    CAD("3D CAD", Icons.Filled.Layers),
 }
 
 /** Full-screen pages that sit on top of the tabs and close with Back. */
@@ -155,6 +157,14 @@ fun FeatherScreen(viewModel: FeatherViewModel) {
     val macroCameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
         val uri = cameraUri
         if (ok && uri != null) routePicture(uri, macro = true)
+    }
+    var pendingStl by remember { mutableStateOf("") }
+    val stlLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("model/stl")) { uri ->
+        if (uri != null) {
+            try { context.contentResolver.openOutputStream(uri)?.use { it.write(pendingStl.toByteArray(Charsets.UTF_8)) }; viewModel.report("STL exported successfully") }
+            catch (e: Exception) { viewModel.report("STL export failed: ${e.message}") }
+        }
+        pendingStl = ""
     }
     val savePngLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/png")) { uri ->
         if (uri != null) scope.launch { viewModel.photo.saveTo(uri)?.let { viewModel.report(it) } ?: viewModel.report("Saved the edited picture") }
@@ -245,6 +255,7 @@ fun FeatherScreen(viewModel: FeatherViewModel) {
                     mode = mode,
                     onMode = { mode = it },
                     onSavePng = { savePngLauncher.launch("edited.png") },
+                    onExportStl = { data -> pendingStl = data; stlLauncher.launch("rounga-model.stl") },
                     files = files,
                     openDialog = { dialog = it },
                     onFindMachine = { findMachine() },
@@ -326,6 +337,7 @@ private fun MainShell(
     mode: DesignMode,
     onMode: (DesignMode) -> Unit,
     onSavePng: () -> Unit,
+    onExportStl: (String) -> Unit,
     files: FileActions,
     openDialog: (Dlg) -> Unit,
     onFindMachine: () -> Unit,
@@ -365,6 +377,7 @@ private fun MainShell(
                     onFindMachine = onFindMachine, onConnect = onConnect, files = files,
                     modifier = Modifier.weight(1f),
                 )
+                Tab.CAD -> CadScreen(onExport = onExportStl, modifier = Modifier.weight(1f))
                 Tab.FILES -> FilesScreen(
                     state = state, vm = viewModel, files = files, openDialog = openDialog,
                     modifier = Modifier.weight(1f),

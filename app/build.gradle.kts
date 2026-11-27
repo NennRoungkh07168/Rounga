@@ -14,8 +14,8 @@ android {
         // lower, but there's no reason to split the floor for them.
         minSdk = 26
         targetSdk = 34
-        versionCode = 6
-        versionName = "0.5.1-hc05"
+        versionCode = 11
+        versionName = "1.0.0-interactive-sketcher"
     }
 
     buildTypes {

@@ -81,3 +81,29 @@ with the spindle/laser disabled first.
 - Manifest: the activity handles configuration changes itself (`configChanges`) and allows all orientations (`fullUser`).
 - Tests: `./gradlew test` runs the new unit tests (tracer, G-code analysis, tool/profile copy, file sniffing, shape ops).
 - Not compiled where it was written: expect a handful of first-sync fixes.
+
+
+## Rounga 0.8.0 CAD build
+
+The repository includes a GitHub Actions workflow at `.github/workflows/build.yml`. Push the source to GitHub, then open **Actions → Build Rounga APK** and download the `Rounga-APK` artifact after a successful run. The workflow installs JDK 17 and Gradle 8.7 and runs `gradle assembleDebug`.
+
+## CAD 0.9.0 notes
+
+The CAD workspace now includes rectangular Pocket and axis-aligned Box Boolean Cut/Union/Intersection. Run `gradle testDebugUnitTest` (or `gradle test`) and `gradle assembleDebug` in the GitHub Actions workflow. Boolean CSG is intentionally limited to axis-aligned Box solids; it is not a substitute for OpenCASCADE/FreeCAD B-rep operations.
+
+
+## Rounga 1.0.0 build from Termux + GitHub
+
+This workflow does not require Android Studio. The included GitHub Actions workflow installs JDK 17 and Gradle 8.7, runs `gradle testDebugUnitTest`, builds `gradle assembleDebug`, and uploads the debug APK as the `Rounga-APK` artifact.
+
+1. Extract this source ZIP over a fresh clone of your repository (keep the `.git` directory).
+2. From the repository root in Termux run:
+   ```sh
+   git add .
+   git commit -m "Rounga CAD 1.0.0 interactive sketcher"
+   git push origin main
+   ```
+3. On GitHub open **Actions → Build Rounga APK**. Wait for the workflow to finish.
+4. Open the successful run and download **Rounga-APK** under Artifacts. Install the APK on Android and test the CAD tab.
+
+The source ZIP intentionally does not include `gradle-wrapper.jar`; GitHub Actions uses its installed Gradle 8.7 directly, so the workflow does not depend on the wrapper. This environment does not have the Android SDK/Gradle Android toolchain, so the APK has not been built or device-tested here.
